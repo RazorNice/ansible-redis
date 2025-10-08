@@ -103,12 +103,37 @@
     - redis_sentinel_pidfile != '""'
     - not sentinel_piddir.stat.exists
 
-- name: create sentinel config file
-  template:
-    src: redis_sentinel.conf.j2
-    dest: /etc/redis/sentinel_{{ redis_sentinel_port }}.conf
+# - name: create sentinel config file
+#   template:
+#     src: redis_sentinel.conf.j2
+#     dest: /etc/redis/sentinel_{{ redis_sentinel_port }}.conf
+#     owner: "{{ redis_user }}"
+#     mode: 0640
+#   notify: "restart sentinel"
+
+- name: ensure sentinel config file exists
+  file:
+    path: /etc/redis/sentinel_{{ redis_sentinel_port }}.conf
+    state: touch
     owner: "{{ redis_user }}"
-    mode: 0640
+    mode: '0640'
+
+- name: manage static sentinel configuration block
+  blockinfile:
+    path: /etc/redis/sentinel_{{ redis_sentinel_port }}.conf
+    marker: "# {mark} ANSIBLE MANAGED BLOCK"
+    block: |
+      daemonize yes
+      protected-mode yes
+      dir {{ redis_sentinel_dir }}
+      pidfile {{ redis_sentinel_pidfile }}
+      port {{ redis_sentinel_port }}
+      bind {{ redis_bind_address | default('0.0.0.0') }}
+      logfile ""
+      syslog-enabled yes
+      syslog-ident sentinel_{{ redis_sentinel_port }}
+      syslog-facility USER
+      sentinel monitor {{ redis_sentinel_master_name }} {{ redis_sentinel_monitor_host }} {{ redis_sentinel_monitor_port }} {{ redis_sentinel_quorum }}
   notify: "restart sentinel"
 
 - name: add sentinel init config file
